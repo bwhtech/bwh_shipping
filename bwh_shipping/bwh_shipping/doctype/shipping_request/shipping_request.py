@@ -8,6 +8,7 @@ from frappe.model.document import Document
 from frappe.utils.data import cint, flt, get_datetime, today
 
 from bwh_shipping.bwh_shipping.utils import get_address_payload
+from bwh_shipping.exceptions import PartialBookingError
 from bwh_shipping.status import can_advance, is_terminal, validate_status
 from bwh_shipping.units import DEFAULT_VOLUMETRIC_DIVISOR, billable_weight, normalise_parcels
 
@@ -65,16 +66,31 @@ class ShippingRequest(Document):
 
 	@frappe.whitelist()
 	def book(self) -> dict:
-		"""Book the consignment with the provider and buy its label."""
+		"""Book the consignment with the provider and buy its label.
+
+		Resumable: if a previous attempt got as far as creating the order at the provider but failed before
+		the AWB, this finishes that same order rather than creating a second one for the same parcel.
+		"""
 		self.lock_booking()
 
-		if self.awb or self.order_ref:
+		if self.awb:
 			frappe.throw(
-				_("This shipment is already booked with AWB {0}").format(frappe.bold(self.awb or "-")),
+				_("This shipment is already booked with AWB {0}").format(frappe.bold(self.awb)),
 				title=_("Already Booked"),
 			)
 		if not self.service_code:
 			frappe.throw(_("Select a shipping service before booking"))
+
+		controller = self.get_controller()
+		resuming = bool(self.order_ref)
+		if resuming and not controller.supports("resume"):
+			frappe.throw(
+				_(
+					"An order for this shipment already exists at {0} ({1}), and it cannot finish a partial"
+					" booking. Cancel that order in the provider's dashboard before trying again."
+				).format(frappe.bold(self.provider), frappe.bold(self.order_ref)),
+				title=_("Partial Booking"),
+			)
 
 		# ponytail: the intent log shares this transaction, so a crash between the provider call and the
 		# commit loses the record of a label that was really bought; reconcile from the provider's own
@@ -87,7 +103,17 @@ class ShippingRequest(Document):
 		)
 
 		try:
-			result = self.get_controller().create_shipment(self.get_shipment_payload())
+			if resuming:
+				result = controller.resume_booking(self.order_ref, self.shipment_ref, self.service_code)
+			else:
+				result = controller.create_shipment(self.get_shipment_payload())
+		except PartialBookingError as partial:
+			# The provider created something before it failed. Record the handles it gave back — written
+			# with db_set so they survive the rollback this exception is about to trigger — or the retry
+			# books a second consignment and this one becomes an orphan only findable by hand.
+			self.record_partial_booking(partial.booking)
+			request_log.db_set("status", "Failed", update_modified=False)
+			raise
 		except Exception:
 			request_log.db_set("status", "Failed", update_modified=False)
 			raise
@@ -95,6 +121,19 @@ class ShippingRequest(Document):
 		self.apply_booking_result(result)
 		request_log.db_set("status", "Completed", update_modified=False)
 		return {"awb": self.awb, "label_url": self.label_url, "status": self.status}
+
+	def record_partial_booking(self, booking: dict):
+		"""Persist the handles a half-finished booking left behind at the provider.
+
+		db_set rather than save: the caller is about to re-raise, and the enclosing transaction will roll
+		back everything that is not already committed. These references are the only thread back to a
+		consignment that really exists at the provider, so they must outlive the failure.
+		"""
+		if not booking:
+			return
+		for field in ("order_ref", "shipment_ref"):
+			if booking.get(field):
+				self.db_set(field, booking[field], update_modified=False, commit=True)
 
 	def apply_booking_result(self, result: dict):
 		self.order_ref = result.get("order_ref")

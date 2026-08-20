@@ -3,7 +3,11 @@ from abc import ABC, abstractmethod
 # Optional capabilities, mapped to the method that implements them. Aggregators differ on what they
 # expose — AfterShip has no pickup or manifest call at all, Shiprocket has both — so a caller asks
 # `supports()` instead of hard-coding which provider can do what.
-OPTIONAL_CAPABILITIES = {"pickup": "schedule_pickup", "manifest": "generate_manifest"}
+OPTIONAL_CAPABILITIES = {
+	"pickup": "schedule_pickup",
+	"manifest": "generate_manifest",
+	"resume": "resume_booking",
+}
 
 
 class ShippingProviderBase(ABC):
@@ -73,6 +77,16 @@ class ShippingProviderBase(ABC):
 	def generate_manifest(self, shipment_refs: list[str]) -> dict:
 		"""Return {"manifest_url"} for the handover sheet covering these consignments."""
 		raise NotImplementedError(f"{self.get_provider_name()} cannot generate manifests")
+
+	def resume_booking(self, order_ref: str, shipment_ref: str, service_code: str | None = None) -> dict:
+		"""Finish a booking that already exists at the provider, returning the same shape as
+		`create_shipment`.
+
+		Providers that book in stages implement this so a failure part-way through is recoverable. Without
+		it a retry can only start again, which at a provider that books in stages means a second order for
+		one parcel and an orphan nobody holds a reference to.
+		"""
+		raise NotImplementedError(f"{self.get_provider_name()} cannot resume a partial booking")
 
 	def supports(self, capability: str) -> bool:
 		"""Whether this provider actually implements an optional capability.

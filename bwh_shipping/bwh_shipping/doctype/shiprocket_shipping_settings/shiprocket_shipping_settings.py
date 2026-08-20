@@ -11,6 +11,7 @@ from frappe.utils import get_request_session
 from frappe.utils.data import cint, cstr, flt, today
 
 from bwh_shipping.base_class import ShippingProviderBase
+from bwh_shipping.exceptions import PartialBookingError
 from bwh_shipping.units import billable_weight, enclosing_dimensions
 
 SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in/v1/external"
@@ -237,9 +238,10 @@ class ShiprocketShippingSettings(Document, ShippingProviderBase):
 	def create_shipment(self, shipment: dict) -> dict:
 		"""Shiprocket books in three calls: create the order, assign an AWB, then generate the label.
 
-		They are deliberately not wrapped in a rollback. Once the AWB is assigned the consignment is real
-		and billable, so a later label failure leaves the AWB stored and reported rather than thrown away —
-		the label can be regenerated, but a silently discarded AWB is a shipment nobody knows exists.
+		Deliberately not wrapped in a rollback — the provider has no rollback to offer. Instead each stage
+		that creates something reports what it created even when a later stage fails, so the caller can
+		record it. Once the AWB is assigned the consignment is real and billable, so a label failure keeps
+		the AWB rather than discarding it: a lost AWB is a shipment nobody knows exists.
 		"""
 		order = self.create_order(shipment)
 		shipment_ref = cstr(order.get("shipment_id"))
@@ -247,10 +249,19 @@ class ShiprocketShippingSettings(Document, ShippingProviderBase):
 		if not shipment_ref:
 			frappe.throw(_("Shiprocket created no shipment for this order"))
 
-		awb_details = self.assign_awb(shipment_ref, shipment.get("service_code"))
+		# From here the order exists at Shiprocket. Any failure has to carry these handles back out, or the
+		# next attempt creates a second order for the same parcel and orphans this one.
+		booking = {"order_ref": order_ref, "shipment_ref": shipment_ref}
+		try:
+			awb_details = self.assign_awb(shipment_ref, shipment.get("service_code"))
+		except Exception as exception:
+			raise PartialBookingError(cstr(exception), booking=booking) from exception
+
 		awb = cstr(awb_details.get("awb_code"))
 		if not awb:
-			frappe.throw(_("Shiprocket assigned no AWB to shipment {0}").format(shipment_ref))
+			raise PartialBookingError(
+				_("Shiprocket assigned no AWB to shipment {0}").format(shipment_ref), booking=booking
+			)
 
 		return {
 			"order_ref": order_ref,
@@ -263,6 +274,27 @@ class ShiprocketShippingSettings(Document, ShippingProviderBase):
 			"cost_amount": flt(awb_details.get("charges") or awb_details.get("rate")),
 			"cost_currency": self.get_currency(),
 			"status": order.get("status"),
+		}
+
+	def resume_booking(self, order_ref: str, shipment_ref: str, service_code: str | None = None) -> dict:
+		"""Finish a booking whose order already exists at Shiprocket, without creating a second one."""
+		awb_details = self.assign_awb(shipment_ref, service_code)
+		awb = cstr(awb_details.get("awb_code"))
+		if not awb:
+			raise PartialBookingError(
+				_("Shiprocket assigned no AWB to shipment {0}").format(shipment_ref),
+				booking={"order_ref": order_ref, "shipment_ref": shipment_ref},
+			)
+
+		return {
+			"order_ref": order_ref,
+			"shipment_ref": shipment_ref,
+			"awb": awb,
+			"carrier": awb_details.get("courier_name"),
+			"label_url": self.generate_label(shipment_ref),
+			"cost_amount": flt(awb_details.get("charges") or awb_details.get("rate")),
+			"cost_currency": self.get_currency(),
+			"status": None,
 		}
 
 	def create_order(self, shipment: dict) -> dict:
