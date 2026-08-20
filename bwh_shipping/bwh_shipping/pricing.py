@@ -3,7 +3,7 @@ from frappe import _
 from frappe.utils.caching import redis_cache
 from frappe.utils.data import cstr, flt
 
-from bwh_shipping.bwh_shipping.utils import get_provider_controller
+from bwh_shipping.bwh_shipping.utils import get_default_origin, get_provider_controller
 
 SERVICE_FIELDS = [
 	"name",
@@ -47,13 +47,16 @@ def find_service(title: str) -> dict | None:
 
 
 def quote_services(
-	origin: dict,
+	origin: dict | None,
 	destination: dict,
 	parcels: list[dict],
 	cart: dict,
 	cod: bool = False,
 ) -> list[dict]:
 	"""Price every enabled Shipping Service for this cart.
+
+	Pass `origin` to force a ship-from address; pass None and each provider uses its own pickup address,
+	which is what a store running more than one provider needs.
 
 	A service covered by a band of its Shipping Rule is priced by that band; one with no covering band is
 	priced from the live carrier rate plus markup and handling, and falls back to its own Backup Charge. A
@@ -76,19 +79,31 @@ def quote_key(service: dict) -> tuple:
 
 
 def get_live_quotes(
-	services: list[dict], origin: dict, destination: dict, parcels: list[dict], cart: dict, cod: bool
+	services: list[dict],
+	origin: dict | None,
+	destination: dict,
+	parcels: list[dict],
+	cart: dict,
+	cod: bool,
 ) -> dict:
 	"""Live rates for every provider these services span, keyed by (provider, service_code).
 
 	One call per provider rather than per service: providers rate-shop all their couriers in a single
 	request, so per-service calls would multiply checkout latency for identical answers.
+
+	Each provider ships from its OWN pickup address unless the caller names an origin. Sharing one origin
+	across providers quietly breaks the moment two of them ship from different places — an Indian carrier
+	handed a US origin returns no rates at all, and every option silently falls back to its backup charge.
 	"""
-	if not (origin and destination and parcels):
+	if not (destination and parcels):
 		return {}
 
 	quotes = {}
 	for provider in dict.fromkeys(service["provider"] for service in services if service.get("provider")):
-		for rate in get_provider_rates(provider, origin, destination, parcels, cart, cod):
+		provider_origin = origin or get_default_origin(provider)
+		if not provider_origin:
+			continue
+		for rate in get_provider_rates(provider, provider_origin, destination, parcels, cart, cod):
 			quotes[(provider, cstr(rate.get("service_code")))] = rate
 	return quotes
 
