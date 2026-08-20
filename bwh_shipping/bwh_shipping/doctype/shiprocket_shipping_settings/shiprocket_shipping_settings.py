@@ -371,6 +371,7 @@ class ShiprocketShippingSettings(Document, ShippingProviderBase):
 		return {
 			"awb": awb,
 			"status": status,
+			"provider_status": provider_status,
 			# Shiprocket has no event id of its own, so the status timestamp is the closest thing to one:
 			# it is what makes a redelivery of the same scan recognisable as a replay.
 			"event_id": cstr(event.get("current_timestamp") or event.get("etd") or provider_status),

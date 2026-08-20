@@ -58,21 +58,31 @@ def handle():
 		log_webhook(provider, awb=awb, event_id=event_id, status="Failed")
 		return reject()
 
-	apply_status_as_administrator(shipping_request, status, event_id, result.get("events"))
+	apply_status_as_administrator(
+		shipping_request, status, event_id, result.get("events"), result.get("provider_status")
+	)
 	log_webhook(provider, awb=awb, event_id=event_id, status="Completed")
 	# A replayed delivery is still a success as far as the provider is concerned; anything else and it
 	# keeps retrying forever.
 	return WEBHOOK_ACCEPTED
 
 
-def apply_status_as_administrator(shipping_request, status: str, event_id: str | None, events: list | None):
+def apply_status_as_administrator(
+	shipping_request,
+	status: str,
+	event_id: str | None,
+	events: list | None,
+	provider_status: str | None = None,
+):
 	# The callback arrives as Guest, but the downstream Sales Order write-back needs a real user context.
 	# Restore the original user afterwards so a long-lived worker does not keep Administrator for the
 	# next job.
 	session_user = frappe.session.user
 	try:
 		frappe.set_user("Administrator")
-		shipping_request.apply_webhook_status(status, event_id=event_id, events=events)
+		shipping_request.apply_webhook_status(
+			status, event_id=event_id, events=events, provider_status=provider_status
+		)
 	finally:
 		frappe.set_user(session_user)
 

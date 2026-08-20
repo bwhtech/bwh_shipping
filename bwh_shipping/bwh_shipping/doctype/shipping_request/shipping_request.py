@@ -181,7 +181,11 @@ class ShippingRequest(Document):
 		return result or {}
 
 	def apply_webhook_status(
-		self, status: str, event_id: str | None = None, events: list | None = None
+		self,
+		status: str,
+		event_id: str | None = None,
+		events: list | None = None,
+		provider_status: str | None = None,
 	) -> bool:
 		"""Apply a verified provider status. Return False when the event is a replay or not applicable."""
 		self.lock_booking()
@@ -189,12 +193,12 @@ class ShippingRequest(Document):
 		if event_id and self.last_webhook_event_id == event_id:
 			return False
 
-		applied = self.apply_status(status, events=events, event_id=event_id)
-		if not applied and event_id:
-			# Record the id even when the status itself did not move, or an out-of-order delivery is
-			# re-examined on every retry for the life of the shipment.
-			self.db_set("last_webhook_event_id", event_id, update_modified=False)
-		return applied
+		# `last_webhook_event_id` records the last event actually APPLIED, so a rejected one — an
+		# out-of-order scan, or a status this shipment has already moved past — cannot overwrite it.
+		# Letting it would point the replay guard at an event that never took effect, and on a shipment
+		# still in flight that loses the guard for the event that did. Re-examining a rejected delivery on
+		# each retry is cheap: it fails the ladder check immediately.
+		return self.apply_status(status, provider_status=provider_status, events=events, event_id=event_id)
 
 	def apply_status(
 		self,
@@ -221,12 +225,18 @@ class ShippingRequest(Document):
 				message=f"stored: {self.status}, provider reported: {status}",
 			)
 
-		if provider_status:
-			self.provider_status = provider_status
-		if event_id:
-			self.last_webhook_event_id = event_id
+		# The provider's wording and the replay id describe the state actually held, so they are recorded
+		# only when this event agrees with where the shipment now is — true when it just advanced it, and
+		# true when a re-sync reports the same status. A stale scan the ladder rejected must not relabel a
+		# delivered shipment, nor claim the replay slot belonging to the event that did take effect.
+		describes_current_state = bool(status) and status == self.status
+		if describes_current_state:
+			if provider_status:
+				self.provider_status = provider_status
+			if event_id:
+				self.last_webhook_event_id = event_id
 
-		if advanced or appended or provider_status or event_id:
+		if advanced or appended or describes_current_state:
 			self.save(ignore_permissions=True)
 		return advanced
 
