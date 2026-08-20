@@ -9,6 +9,11 @@ app_license = "mit"
 # bodies instead of form-encoded, per-key JSON-stringified values.
 use_json_request_body = True
 
+required_apps = ["frappe/erpnext"]
+
+export_python_type_annotations = True
+require_type_annotated_api_methods = True
+
 # Apps
 # ------------------
 
@@ -294,4 +299,3 @@ require_type_annotated_api_methods = True
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-
