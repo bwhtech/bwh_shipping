@@ -47,3 +47,16 @@ def get_address_payload(address_name: str, contact_name: str | None = None) -> d
 		"phone": address.phone,
 		"email": address.email_id,
 	}
+
+
+def get_default_origin(provider: str) -> dict | None:
+	"""Where a checkout quote ships from: the provider's own configured pickup address.
+
+	By convention a provider's settings Single exposes a `pickup_address` Address link. It is read by
+	convention rather than declared on the contract because it is configuration, not behaviour — a
+	provider with no such field simply has no default origin, and the caller quotes from backup charges.
+	"""
+	address_name = getattr(get_provider_controller(provider), "pickup_address", None)
+	if not address_name:
+		return None
+	return get_address_payload(address_name)

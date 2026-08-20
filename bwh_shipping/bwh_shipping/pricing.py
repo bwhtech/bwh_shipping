@@ -131,7 +131,10 @@ def price_service(service: dict, quote: dict | None, cart: dict):
 	"""(amount, is_live_rate) for this service, or UNPRICEABLE when nothing prices it for this cart."""
 	band = get_covering_band(service.get("shipping_rule"), cart)
 	if band is not None:
-		if band.free_shipping:
+		# In stock ERPNext a free band is simply one whose amount is zero, which the conversion below
+		# already yields. `free_shipping` exists only where another app has added it to Shipping Rule
+		# Condition, so it is read defensively and honoured where present rather than required.
+		if band.get("free_shipping"):
 			return 0.0, False
 		# Shipping Rule bands are in COMPANY currency, the same as ERPNext's
 		# add_shipping_rule_to_tax_table assumes; convert back to what the cart is priced in.
