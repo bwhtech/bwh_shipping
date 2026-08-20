@@ -17,6 +17,7 @@
   "section_break_ref",
   "ref_doctype",
   "ref_docname",
+  "delivery_note",
   "column_break_ref",
   "customer_name",
   "customer_phone",
@@ -37,6 +38,7 @@
   "order_ref",
   "shipment_ref",
   "awb",
+  "tracking_ref",
   "column_break_booking",
   "label_url",
   "manifest_url",
@@ -125,6 +127,14 @@
    "label": "Reference Name",
    "options": "ref_doctype",
    "reqd": 1
+  },
+  {
+   "description": "The Delivery Note this consignment ships. A second Shipping Request for the same note is refused, so one parcel cannot get two labels.",
+   "fieldname": "delivery_note",
+   "fieldtype": "Link",
+   "label": "Delivery Note",
+   "options": "Delivery Note",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_ref",
@@ -243,6 +253,13 @@
    "label": "AWB",
    "read_only": 1,
    "unique": 1
+  },
+  {
+   "description": "The provider's own handle for tracking, when it differs from the AWB (AfterShip registers a tracking object; Shiprocket tracks the AWB directly).",
+   "fieldname": "tracking_ref",
+   "fieldtype": "Data",
+   "label": "Tracking Reference",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_booking",

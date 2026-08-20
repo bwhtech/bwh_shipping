@@ -362,7 +362,10 @@ class ShiprocketShippingSettings(Document, ShippingProviderBase):
 		response = self.request("POST", "/orders/cancel", {"ids": [order_ref]})
 		return {"status": "Cancelled", "message": (response or {}).get("message")}
 
-	def get_tracking(self, awb: str, shipment_ref: str | None = None) -> dict:
+	def get_tracking(
+		self, awb: str, shipment_ref: str | None = None, tracking_ref: str | None = None
+	) -> dict:
+		# Shiprocket tracks on the AWB itself, so it has no separate tracking handle to use.
 		response = self.request("GET", f"/courier/track/awb/{awb}")
 		tracking = read_tracking_data(response)
 		scans = tracking.get("shipment_track_activities") or []

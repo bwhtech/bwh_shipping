@@ -14,6 +14,11 @@ required_apps = ["frappe/erpnext"]
 export_python_type_annotations = True
 require_type_annotated_api_methods = True
 
+doctype_js = {
+	"Delivery Note": "public/js/delivery_note.js",
+	"Shipping Request": "public/js/shipping_request.js",
+}
+
 # Apps
 # ------------------
 

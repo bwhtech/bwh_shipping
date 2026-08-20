@@ -143,6 +143,8 @@ class ShippingRequest(Document):
 		self.label_url = result.get("label_url")
 		self.cost_amount = flt(result.get("cost_amount"))
 		self.cost_currency = result.get("cost_currency")
+		# Optional: only providers whose tracking handle differs from the AWB report one.
+		self.tracking_ref = result.get("tracking_ref")
 		# The provider may report its own booked state, but the ladder position is ours: a booked
 		# consignment is Ready To Ship until a carrier scan says otherwise.
 		self.provider_status = result.get("status")
@@ -177,7 +179,9 @@ class ShippingRequest(Document):
 		if not self.awb:
 			frappe.throw(_("This shipment has no AWB yet, so there is nothing to track"))
 
-		tracking = self.get_controller().get_tracking(self.awb, shipment_ref=self.shipment_ref)
+		tracking = self.get_controller().get_tracking(
+			self.awb, shipment_ref=self.shipment_ref, tracking_ref=self.tracking_ref
+		)
 
 		# The provider round-trip is slow, so the lock is taken after it and picks up whatever a webhook
 		# committed meanwhile. Without it this save races that webhook into a TimestampMismatchError.

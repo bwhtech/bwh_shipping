@@ -46,8 +46,11 @@ class ShippingProviderBase(ABC):
 		"""Book one consignment and buy its label.
 
 		Return {"order_ref", "shipment_ref", "awb", "carrier", "label_url", "cost_amount",
-		"cost_currency", "status"}. `order_ref` and `shipment_ref` are whatever handles the provider
-		needs later for cancel, pickup and manifest; both are stored verbatim.
+		"cost_currency", "status"}, and optionally "tracking_ref". `order_ref` and `shipment_ref` are
+		whatever handles the provider needs later for cancel, pickup and manifest; all are stored verbatim.
+
+		`tracking_ref` exists because a provider's tracking handle is not always its label handle —
+		AfterShip registers a tracking object with its own id, while Shiprocket tracks on the AWB itself.
 		"""
 
 	@abstractmethod
@@ -57,7 +60,9 @@ class ShippingProviderBase(ABC):
 		"""Cancel a booked consignment. Return {"status", "message"}."""
 
 	@abstractmethod
-	def get_tracking(self, awb: str, shipment_ref: str | None = None) -> dict:
+	def get_tracking(
+		self, awb: str, shipment_ref: str | None = None, tracking_ref: str | None = None
+	) -> dict:
 		"""Read the authoritative status from the provider.
 
 		Return {"status", "provider_status", "events"} where `status` is one of
