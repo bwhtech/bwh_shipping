@@ -1,5 +1,8 @@
+from zoneinfo import ZoneInfo
+
 import frappe
 from frappe import _
+from frappe.utils import get_datetime, get_system_timezone
 from frappe.utils.data import cint, flt
 
 # Canonical units at the provider boundary are kg and cm (see ShippingProviderBase). ERPNext stores
@@ -122,3 +125,21 @@ def enclosing_dimensions(parcels: list[dict]) -> dict:
 		"width": flt(max(flt(parcel.get("width")) for parcel in parcels), LENGTH_PRECISION),
 		"height": flt(max(flt(parcel.get("height")) for parcel in parcels), LENGTH_PRECISION),
 	}
+
+
+def to_system_datetime(value):
+	"""A provider's timestamp as a naive datetime in system time.
+
+	Time is a canonical unit at this boundary too. Carriers disagree about how they spell an instant —
+	Shiprocket sends a naive local string, AfterShip an offset-aware ISO-8601 one — and a Datetime column
+	stores neither an offset nor a zone, so MySQL rejects the offset outright rather than dropping it.
+	Converting first keeps the instant the carrier meant; a naive value is already system time and passes
+	through untouched.
+	"""
+	if not value:
+		return None
+
+	parsed = get_datetime(value)
+	if parsed is None or parsed.tzinfo is None:
+		return parsed
+	return parsed.astimezone(ZoneInfo(get_system_timezone())).replace(tzinfo=None)

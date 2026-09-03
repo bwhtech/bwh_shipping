@@ -12,7 +12,7 @@ from frappe.utils.data import cint, cstr, flt, today
 
 from bwh_shipping.base_class import ShippingProviderBase
 from bwh_shipping.exceptions import PartialBookingError
-from bwh_shipping.units import billable_weight, enclosing_dimensions
+from bwh_shipping.units import billable_weight, enclosing_dimensions, to_system_datetime
 
 SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in/v1/external"
 
@@ -479,7 +479,7 @@ def build_event(scan: dict) -> dict:
 	# Shiprocket spells the same scan differently across endpoints — `date`/`status`/`activity` from
 	# tracking, `sr-status-label`/`location` from the webhook — so both spellings are read.
 	return {
-		"timestamp": scan.get("date") or scan.get("updated_date") or scan.get("time"),
+		"timestamp": to_system_datetime(scan.get("date") or scan.get("updated_date") or scan.get("time")),
 		"status": scan.get("sr-status-label") or scan.get("status") or scan.get("sr_status_label"),
 		"location": scan.get("location"),
 		"message": scan.get("activity") or scan.get("sr-status-label") or scan.get("status"),

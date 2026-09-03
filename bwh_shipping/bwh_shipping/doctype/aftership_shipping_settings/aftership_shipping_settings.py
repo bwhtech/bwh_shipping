@@ -13,7 +13,7 @@ from frappe.utils import get_request_session
 from frappe.utils.data import cint, cstr, flt
 
 from bwh_shipping.base_class import ShippingProviderBase
-from bwh_shipping.units import billable_weight
+from bwh_shipping.units import billable_weight, to_system_datetime
 
 DEFAULT_TIMEOUT_SECONDS = 30
 
@@ -440,7 +440,7 @@ def build_event(checkpoint: dict) -> dict:
 		if part
 	)
 	return {
-		"timestamp": checkpoint.get("checkpoint_time") or checkpoint.get("created_at"),
+		"timestamp": to_system_datetime(checkpoint.get("checkpoint_time") or checkpoint.get("created_at")),
 		"status": checkpoint.get("tag"),
 		"location": location or checkpoint.get("location"),
 		"message": checkpoint.get("message"),
