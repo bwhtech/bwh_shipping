@@ -47,7 +47,8 @@ def create_shipping_request(delivery_note: str) -> str:
 			"origin_address": get_origin_address(source, provider),
 			"destination_address": source.shipping_address_name or source.customer_address,
 			"customer_name": source.customer_name,
-			"customer_phone": source.contact_phone or source.contact_mobile,
+			# Sales Order carries contact_phone; Delivery Note only ever had contact_mobile.
+			"customer_phone": source.get("contact_phone") or source.contact_mobile,
 			"customer_email": source.contact_email,
 			"currency": source.currency,
 			"declared_value": flt(source.grand_total),

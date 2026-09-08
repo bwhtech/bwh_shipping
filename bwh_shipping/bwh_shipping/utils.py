@@ -22,6 +22,25 @@ def resolve_provider(provider: str) -> str | None:
 	return None
 
 
+def get_provider_profile(provider_settings: str) -> str:
+	"""The enabled Shipping Provider Profile backed by a settings Single — the inverse of the link.
+
+	A settings Single knows how to talk to its carrier but not which profile fronts it, and a Shipping
+	Service is owned by the profile, not the Single.
+	"""
+	profiles = frappe.get_all(
+		"Shipping Provider Profile",
+		filters={"provider_settings": provider_settings, "enabled": 1},
+		pluck="name",
+		limit=1,
+	)
+	if not profiles:
+		frappe.throw(
+			_("No enabled Shipping Provider Profile uses {0}.").format(frappe.bold(provider_settings))
+		)
+	return profiles[0]
+
+
 def get_provider_controller(provider: str):
 	"""The settings Single backing a profile, as a ShippingProviderBase."""
 	settings = frappe.get_cached_value("Shipping Provider Profile", provider, "provider_settings")

@@ -13,6 +13,7 @@ from frappe.utils import get_request_session
 from frappe.utils.data import cint, cstr, flt
 
 from bwh_shipping.base_class import ShippingProviderBase
+from bwh_shipping.bwh_shipping.utils import get_provider_profile
 from bwh_shipping.units import billable_weight, to_system_datetime
 
 DEFAULT_TIMEOUT_SECONDS = 30
@@ -178,6 +179,15 @@ class AfterShipShippingSettings(Document, ShippingProviderBase):
 	def list_shipper_accounts(self) -> list[dict]:
 		data = self.request("GET", self.get_shipping_base(), "/shipper-accounts")
 		return data.get("shipper_accounts") or []
+
+	def list_couriers(self) -> list[dict]:
+		"""Every courier on this key, each with the service types it sells and where it collects from.
+
+		Separate from the shipper accounts: an account says which carrier contract the key can bill
+		against, a courier says what that carrier actually offers.
+		"""
+		data = self.request("GET", self.get_shipping_base(), "/couriers")
+		return data.get("couriers") or []
 
 	def build_rate(self, rate: dict) -> dict:
 		charge = rate.get("total_charge") or {}
@@ -410,6 +420,36 @@ class AfterShipShippingSettings(Document, ShippingProviderBase):
 		}
 
 	@frappe.whitelist()
+	def get_service_choices(self) -> dict:
+		"""Carrier services this key can actually sell from the configured pickup country.
+
+		Backs both importers — the Shipping Service list view's "Import from Carrier" dialog and the
+		dashboard's Delivery Options screen — so an admin picks a carrier and a service instead of
+		hand-typing an account id and a service type into a Service Code.
+
+		One group per shipper account, because an account is what AfterShip bills a label against.
+		"""
+		if not self.get_password("api_key", raise_exception=False):
+			frappe.throw(_("Set the AfterShip API Key before importing carrier services."))
+		if not self.pickup_address:
+			frappe.throw(_("Set a Pickup Address before importing carrier services."))
+
+		country = frappe.db.get_value("Address", self.pickup_address, "country")
+		if not country:
+			frappe.throw(_("Pickup Address {0} has no country set.").format(frappe.bold(self.pickup_address)))
+
+		accounts = self.list_shipper_accounts()
+		if self.shipper_account_id:
+			# Rates are only ever shopped against the configured account, so a service imported for any
+			# other one could never be quoted — it would sit at checkout on its backup charge forever.
+			accounts = [account for account in accounts if account.get("id") == self.shipper_account_id]
+
+		return {
+			"provider": get_provider_profile(self.doctype),
+			"accounts": build_delivery_option_choices(accounts, self.list_couriers(), alpha_3(country)),
+		}
+
+	@frappe.whitelist()
 	def get_billable_weight(self, parcels: list) -> float:
 		return billable_weight(frappe.parse_json(parcels), self.get_volumetric_divisor())
 
@@ -481,6 +521,52 @@ def alpha_3(country: str | None) -> str | None:
 	if not resolved:
 		frappe.throw(_("Cannot resolve an ISO alpha-3 country code for {0}").format(frappe.bold(country)))
 	return resolved
+
+
+def origin_can_ship_from(ship_from: str | None, origin: str) -> bool:
+	"""AfterShip's courier `ship_from` is one string: "Global", one alpha-3, or a comma list ("HKG,SGP")."""
+	ship_from = cstr(ship_from).strip()
+	if not ship_from:
+		return False
+	if ship_from.casefold() == "global":
+		return True
+	return origin in {code.strip().upper() for code in ship_from.split(",")}
+
+
+def build_delivery_option_choices(
+	shipper_accounts: list[dict], couriers: list[dict], origin: str
+) -> list[dict]:
+	"""Group each in-scope shipper account with the services of its matching courier.
+
+	An account is in scope when its slug names a courier that collects from the origin country and that
+	courier lists at least one service type — anything else would import an option nobody can buy.
+	"""
+	couriers_by_slug = {courier.get("slug"): courier for courier in couriers}
+	choices = []
+	for account in shipper_accounts:
+		courier = couriers_by_slug.get(account.get("slug"))
+		if not courier or not origin_can_ship_from(courier.get("ship_from"), origin):
+			continue
+
+		services = [
+			{
+				"service_code": build_service_code(account.get("id"), service.get("service_type")),
+				"service_name": service.get("service_name") or service.get("service_type"),
+			}
+			for service in courier.get("courier_service_types") or []
+			if service.get("service_type")
+		]
+		if not services:
+			continue
+
+		choices.append(
+			{
+				"carrier": account.get("slug"),
+				"description": account.get("description") or account.get("slug"),
+				"services": services,
+			}
+		)
+	return choices
 
 
 def summarise(body: dict) -> dict:

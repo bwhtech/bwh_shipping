@@ -7,6 +7,7 @@ OPTIONAL_CAPABILITIES = {
 	"pickup": "schedule_pickup",
 	"manifest": "generate_manifest",
 	"resume": "resume_booking",
+	"service_choices": "get_service_choices",
 }
 
 
@@ -93,17 +94,36 @@ class ShippingProviderBase(ABC):
 		"""
 		raise NotImplementedError(f"{self.get_provider_name()} cannot resume a partial booking")
 
-	def supports(self, capability: str) -> bool:
+	def get_service_choices(self) -> dict:
+		"""Every carrier service this account can actually sell, for bulk-importing Shipping Services.
+
+		Return {"provider", "accounts"} — the Shipping Provider Profile the imported services belong to,
+		and one group per carrier account: {"carrier", "description", "services"}, where each service is
+		{"service_code", "service_name"}. A `service_code` is whatever `get_rates` and `create_shipment`
+		expect back, so an imported service round-trips into a booking unchanged.
+
+		Optional because an aggregator does not have to publish its catalogue: Shiprocket picks the courier
+		itself at booking time and has nothing to list, so it leaves this alone and `supports()` reports
+		False rather than offering an importer that cannot answer.
+		"""
+		raise NotImplementedError(f"{self.get_provider_name()} cannot list its carrier services")
+
+	@classmethod
+	def supports(cls, capability: str) -> bool:
 		"""Whether this provider actually implements an optional capability.
 
 		Derived from whether the subclass overrode the method rather than from a per-provider list of
 		capability strings: a list has to be kept in step by hand, and the day it drifts the desk offers
 		a button that raises NotImplementedError.
+
+		A classmethod so a caller can ask what a provider can do without loading its settings Single —
+		the delivery-options screen lists every installed carrier before anyone picks one. Instances keep
+		answering it exactly as before.
 		"""
 		method_name = OPTIONAL_CAPABILITIES.get(capability)
 		if not method_name:
 			return False
-		return getattr(type(self), method_name) is not getattr(ShippingProviderBase, method_name)
+		return getattr(cls, method_name) is not getattr(ShippingProviderBase, method_name)
 
 	def get_provider_name(self) -> str:
 		return self.__class__.__name__
