@@ -1,123 +1,78 @@
-# BWH Shipping
+<div align="center" markdown="1">
 
-Shipping provider integrations for Frappe/ERPNext. One provider contract, many carriers.
+<img src="bwh_shipping/public/images/bwh_shipping.svg" alt="BWH Shipping logo" width="80" />
+<h1>BWH Shipping</h1>
 
-The shipping sibling of [`bwh_payments`](https://github.com/Rl0007/bwh_payments): a storefront or desk asks
-for rates, books a consignment and reads tracking without knowing which carrier is behind it. Adding a
-provider is one Single doctype implementing five methods — nothing in checkout pricing, the webhook, the
-status ladder or the desk changes.
+<a href="https://buildwithhussain.com"><img src=".github/built-at-bwh.svg" alt="Built at BWH" height="28" /></a>
 
-## What's in it
+**Rates, labels and tracking for Frappe and ERPNext — one contract, many carriers**
 
-| Doctype | Role |
-|---|---|
-| **Shipping Provider Profile** | Names an enabled provider and validates that its settings Single really implements the contract |
-| **Shipping Request** | One consignment: parcels, AWB, label, cost, status, tracking events. Row-locked and idempotent |
-| **Shipping Service** | A customer-facing delivery option — title, markup, handling fee, backup charge, optional Shipping Rule |
-| **Shiprocket Shipping Settings** | Provider: India-domestic aggregator |
-| **AfterShip Shipping Settings** | Provider: global aggregator (Postmen labels + AfterShip tracking) |
+<p>
+	<img src=".github/logos/shiprocket.svg" alt="Shiprocket" height="40" />
+	<img src=".github/logos/aftership.svg" alt="AfterShip" height="40" />
+</p>
 
-Plus `pricing.py` (the checkout pricing engine), `status.py` (the canonical status ladder), `units.py`
-(kg/cm and volumetric weight), `webhook.py` (one guest endpoint for every provider) and `fulfilment.py`
-(draft a shipment from a Delivery Note).
+</div>
 
-## The contract
+## BWH Shipping
 
-Implement `bwh_shipping.base_class.ShippingProviderBase` on a `<Provider> Shipping Settings` Single:
+A storefront or a desk user asks for rates, books a consignment and reads tracking without ever knowing
+which carrier is behind it. Adding a provider is one Single DocType implementing five methods — checkout
+pricing, the webhook, the status ladder and the desk stay exactly as they were.
 
-```python
-get_rates(origin, destination, parcels, cod, declared_value) -> list[dict]
-create_shipment(shipment) -> dict
-cancel_shipment(order_ref, shipment_ref, awb) -> dict
-get_tracking(awb, shipment_ref, tracking_ref) -> dict
-handle_webhook(payload, headers) -> dict
-```
+It is the shipping half of [**Commera**](https://github.com/bwhtech/commera), and its payments sibling is
+[**bwh_payments**](https://github.com/bwhtech/bwh_payments).
 
-Four more are optional, and callers discover them with `supports("pickup" | "manifest" | "resume")` rather
-than hard-coding which provider can do what:
+### Carriers
 
-- `schedule_pickup` — ask the carrier to collect
-- `generate_manifest` — the handover sheet
-- `resume_booking` — finish a booking the provider already half-created
+- **Shiprocket** — Courier aggregator for domestic India, with pincode serviceability, pickup scheduling
+  and manifests.
+- **AfterShip** — Global labels and tracking across hundreds of carriers, in a single booking call.
 
-`supports()` checks whether the subclass overrode the method, so it cannot drift out of step with reality.
+### Key Features
 
-**Units at the boundary are canonical**: weight in kilograms, dimensions in centimetres, money in major
-units of the currency each amount names.
+- **Delivery options you control.** A `Shipping Service` is what a shopper actually picks: its own title,
+  markup, handling fee and optional Shipping Rule. An option that nothing can price is *hidden* at
+  checkout rather than rendered as an accidental "Free".
 
-## Design rules worth knowing before you change it
+- **A status ladder that cannot go backwards.** Carriers replay webhooks and deliver scans out of order,
+  so provider statuses are ranked: one applies only if it ranks strictly higher than what is stored, and
+  Delivered, Cancelled and Lost are terminal. Nothing can un-deliver a delivered order.
 
-- **The status ladder is ranked, not a flat map** (`status.py`). A provider status applies only when it
-  ranks *strictly higher* than what is stored, and Delivered/Cancelled/Lost are terminal. Carriers replay
-  webhooks and deliver scans out of order; nothing may un-deliver a delivered order. Provider statuses
-  that don't map are deliberately absent so they can neither advance nor close a shipment.
-- **`UNPRICEABLE` is a sentinel, not a zero.** An option with no Shipping Rule band, no live rate and no
-  backup charge is *hidden* at checkout, never rendered as an accidental "Free".
-- **Each provider quotes from its own pickup address.** One shared origin breaks the moment two providers
-  ship from different countries — an Indian carrier handed a US origin returns no rates, and every option
+- **Booking is idempotent and row-locked.** Two concurrent bookings cannot both buy a label, and a
+  provider that creates an order then fails before the waybill is *resumed* on retry instead of quietly
+  producing a second consignment.
+
+- **Every provider quotes from its own pickup address.** One shared origin breaks the moment two carriers
+  ship from different countries — an Indian carrier handed a US origin returns nothing, and every option
   silently drops to its backup charge.
-- **Partial bookings are recoverable.** A provider that creates an order then fails before the waybill
-  raises `PartialBookingError` carrying what it created; `book()` persists those handles outside the
-  transaction and a retry resumes instead of creating a second consignment.
-- **Booking is row-locked and idempotent.** Two concurrent bookings cannot both buy a label.
-- **Webhooks answer one opaque 400** for a bad signature, an unknown provider or a missing one, so nobody
-  can enumerate what a site has configured. A verified-but-replayed delivery still gets a 200, or the
-  provider retries forever.
 
-## Provider differences the contract absorbs
+- **One webhook endpoint for every carrier.** Signed where the carrier signs, token-checked where it does
+  not, and answering a single opaque error for a bad signature or an unknown provider alike.
 
-|  | Shiprocket | AfterShip |
-|---|---|---|
-| Coverage | India domestic | Global |
-| Booking | 3 calls (order → AWB → label) | 1 call |
-| Pickup / manifest | yes | no endpoint |
-| Resume partial booking | yes | n/a |
-| Webhook auth | static shared token | HMAC-SHA256 signed |
-| Service identified by | courier id | shipper account + service type |
-| Countries | pincode | ISO alpha-3 |
+- **Fulfilment from ERPNext.** Draft a shipment straight from a Delivery Note; parcels, AWB, label, cost
+  and tracking events all live on the `Shipping Request`.
 
-## Installation
+- **Canonical units at the boundary.** Weight in kilograms, dimensions in centimetres, money in major
+  units of the currency each amount names — including volumetric weight.
 
-```bash
-cd $PATH_TO_YOUR_BENCH
-bench get-app git@github.com:bwhtech/bwh_shipping.git --branch develop
-bench --site <site> install-app bwh_shipping
-```
+### Adding a carrier
 
-Requires `frappe/erpnext` (Address, Currency, Shipping Rule, Delivery Note).
+Subclass `ShippingProviderBase` and implement `get_rates`, `create_shipment`, `cancel_shipment`,
+`get_tracking` and `handle_webhook`. Four more are optional; callers ask `supports("pickup" | "manifest" |
+"resume")` rather than hard-coding which carrier can do what, and that answer is derived from the subclass
+itself so it cannot drift out of step with reality.
 
-## Setting up a provider
+### Under the Hood
 
-1. Fill in the provider's settings Single (API credentials, pickup address, webhook secret) and tick
-   **Enabled**. Run **Test Connection** — it names what the carrier actually knows about your account.
-2. Create a **Shipping Provider Profile** pointing at that settings doctype and enable it.
-3. Create **Shipping Service** rows — one per delivery option a customer sees. Always set a **Backup
-   Charge**: an option nothing can price is hidden rather than shown free.
-4. Point the provider's webhook at
-   `/api/method/bwh_shipping.bwh_shipping.webhook.handle?provider=<Profile Name>`.
+- [Frappe Framework](https://github.com/frappe/frappe) — Full-stack Python web framework.
+- [ERPNext](https://github.com/frappe/erpnext) — Address, Currency, Shipping Rule and Delivery Note.
 
-### Storefront integration
+## About BWH Studios
 
-Consumers call `bwh_shipping.bwh_shipping.pricing`:
+BWH Shipping is developed and maintained by BWH Studios, a tech company based in Jagdalpur, Chhattisgarh,
+specializing in Frappe customizations and consulting.
 
-```python
-quote_services(origin=None, destination, parcels, cart, cod=False)  # None origin = per-provider pickup
-get_charge_amount(title, cart, quoted_amount=None)                  # what to actually bill
-get_charge_account(title)                                           # where the fee posts
-```
-
-Price the option server-side and store the amount at selection time. A client that can name its own
-delivery charge can ship for nothing.
-
-## Contributing
-
-```bash
-cd apps/bwh_shipping
-pre-commit install
-```
-
-Ruff (line length 110, tabs, double quotes) must pass before a diff goes up.
-
-## License
+#### License
 
 MIT
