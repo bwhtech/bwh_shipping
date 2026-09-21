@@ -17,11 +17,11 @@
 ## BWH Shipping
 
 A storefront or a desk user asks for rates, books a consignment and reads tracking without ever knowing
-which carrier is behind it. Adding a provider is one Single DocType implementing five methods — checkout
+which carrier is behind it. Adding a carrier is one Single DocType implementing five methods — checkout
 pricing, the webhook, the status ladder and the desk stay exactly as they were.
 
-It is the shipping half of [**Commera**](https://github.com/bwhtech/commera), and its payments sibling is
-[**bwh_payments**](https://github.com/bwhtech/bwh_payments).
+📖 **[Developer docs](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/get-started/overview)**: quote at
+checkout, book shipments, add your own carrier, and set up each built-in one.
 
 ### Carriers
 
@@ -39,9 +39,8 @@ It is the shipping half of [**Commera**](https://github.com/bwhtech/commera), an
   so provider statuses are ranked: one applies only if it ranks strictly higher than what is stored, and
   Delivered, Cancelled and Lost are terminal. Nothing can un-deliver a delivered order.
 
-- **Booking is idempotent and row-locked.** Two concurrent bookings cannot both buy a label, and a
-  provider that creates an order then fails before the waybill is *resumed* on retry instead of quietly
-  producing a second consignment.
+- **Bookings that can be resumed.** A carrier that creates an order and then fails before the waybill is
+  *resumed* on retry, instead of quietly producing a second consignment.
 
 - **Every provider quotes from its own pickup address.** One shared origin breaks the moment two carriers
   ship from different countries — an Indian carrier handed a US origin returns nothing, and every option
@@ -56,12 +55,27 @@ It is the shipping half of [**Commera**](https://github.com/bwhtech/commera), an
 - **Canonical units at the boundary.** Weight in kilograms, dimensions in centimetres, money in major
   units of the currency each amount names — including volumetric weight.
 
+### Installation
+
+BWH Shipping needs ERPNext, on Frappe 16 or later.
+
+```bash
+bench get-app https://github.com/bwhtech/bwh_shipping
+bench --site your.site install-app bwh_shipping
+```
+
+Then fill in a carrier's settings, create a `Shipping Provider Profile` for it, and add the Shipping
+Services shoppers can pick. Each carrier's setup is in the
+[docs](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/carriers/shiprocket).
+
 ### Adding a carrier
 
-Subclass `ShippingProviderBase` and implement `get_rates`, `create_shipment`, `cancel_shipment`,
-`get_tracking` and `handle_webhook`. Four more are optional; callers ask `supports("pickup" | "manifest" |
-"resume")` rather than hard-coding which carrier can do what, and that answer is derived from the subclass
-itself so it cannot drift out of step with reality.
+Subclass `ShippingProviderBase` on a Single DocType in your own app, and implement `get_rates`,
+`create_shipment`, `cancel_shipment`, `get_tracking` and `handle_webhook`. Four more are optional —
+pickups, manifests, resuming a partial booking and importing services — and callers ask
+`supports("pickup" | "manifest" | "resume" | "service_choices")` rather than hard-coding which carrier can
+do what. The [step-by-step guide](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/build/build-a-carrier)
+builds one from scratch, tests included.
 
 ### Under the Hood
 
