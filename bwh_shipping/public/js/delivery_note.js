@@ -18,7 +18,7 @@ frappe.ui.form.on("Delivery Note", {
 					},
 				});
 			},
-			__("Create"),
+			__("Create")
 		);
 	},
 });
