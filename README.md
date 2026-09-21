@@ -5,7 +5,7 @@
 
 <a href="https://buildwithhussain.com"><img src=".github/built-at-bwh.svg" alt="Built at BWH" height="28" /></a>
 
-**Rates, labels and tracking for Frappe and ERPNext — one contract, many carriers**
+**Shipping rates, labels and tracking for ERPNext**
 
 <p>
 	<img src=".github/logos/shiprocket.svg" alt="Shiprocket" height="40" />
@@ -14,73 +14,73 @@
 
 </div>
 
-## BWH Shipping
-
-A storefront or a desk user asks for rates, books a consignment and reads tracking without ever knowing
-which carrier is behind it. Adding a carrier is one Single DocType implementing five methods — checkout
-pricing, the webhook, the status ladder and the desk stay exactly as they were.
-
-📖 **[Developer docs](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/get-started/overview)**: quote at
-checkout, book shipments, add your own carrier, and set up each built-in one.
+BWH Shipping lets an ERPNext store quote delivery options at checkout, book shipments and track them,
+using the same code for every carrier. Read the **[developer docs](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/get-started/overview)**.
 
 ### Carriers
 
-- **Shiprocket** — Courier aggregator for domestic India, with pincode serviceability, pickup scheduling
-  and manifests.
-- **AfterShip** — Global labels and tracking across hundreds of carriers, in a single booking call.
+- **Shiprocket**: courier aggregator for domestic India, with pickups and manifests
+- **AfterShip**: labels and tracking across hundreds of carriers worldwide
 
-### Key Features
+### Features
 
-- **Delivery options you control.** A `Shipping Service` is what a shopper actually picks: its own title,
-  markup, handling fee and optional Shipping Rule. An option that nothing can price is *hidden* at
-  checkout rather than rendered as an accidental "Free".
+- Live carrier rates at checkout, with your own markup, handling fees and Shipping Rules
+- Book a shipment and print its label from a Delivery Note
+- Tracking updates from carrier webhooks, or on demand
+- Pickups and manifests, where the carrier supports them
+- A booking that fails part-way can be resumed without creating a second order
+- Add your own carrier with one Python class
 
-- **A status ladder that cannot go backwards.** Carriers replay webhooks and deliver scans out of order,
-  so provider statuses are ranked: one applies only if it ranks strictly higher than what is stored, and
-  Delivered, Cancelled and Lost are terminal. Nothing can un-deliver a delivered order.
+### How it works
 
-- **Bookings that can be resumed.** A carrier that creates an order and then fails before the waybill is
-  *resumed* on retry, instead of quietly producing a second consignment.
+```mermaid
+sequenceDiagram
+    participant Store as Your store
+    participant BS as BWH Shipping
+    participant C as Carrier
 
-- **Every provider quotes from its own pickup address.** One shared origin breaks the moment two carriers
-  ship from different countries — an Indian carrier handed a US origin returns nothing, and every option
-  silently drops to its backup charge.
-
-- **One webhook endpoint for every carrier.** Signed where the carrier signs, token-checked where it does
-  not, and answering a single opaque error for a bad signature or an unknown provider alike.
-
-- **Fulfilment from ERPNext.** Draft a shipment straight from a Delivery Note; parcels, AWB, label, cost
-  and tracking events all live on the `Shipping Request`.
-
-- **Canonical units at the boundary.** Weight in kilograms, dimensions in centimetres, money in major
-  units of the currency each amount names — including volumetric weight.
+    Store->>BS: ask for delivery options
+    BS->>C: get rates
+    C-->>BS: rates
+    BS-->>Store: priced options for the shopper
+    Store->>BS: book the Shipping Request
+    BS->>C: create the shipment
+    C-->>BS: AWB and label
+    C->>BS: signed webhook, tracking update
+    BS-->>Store: status moves up, for example to Delivered
+```
 
 ### Installation
 
-BWH Shipping needs ERPNext, on Frappe 16 or later.
+You need ERPNext, on Frappe 16 or later.
 
 ```bash
 bench get-app https://github.com/bwhtech/bwh_shipping
 bench --site your.site install-app bwh_shipping
 ```
 
-Then fill in a carrier's settings, create a `Shipping Provider Profile` for it, and add the Shipping
-Services shoppers can pick. Each carrier's setup is in the
-[docs](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/carriers/shiprocket).
+Then [set up a carrier](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/carriers/shiprocket) and
+[connect it to your store](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/get-started/use-it-in-your-app).
 
 ### Adding a carrier
 
-Subclass `ShippingProviderBase` on a Single DocType in your own app, and implement `get_rates`,
-`create_shipment`, `cancel_shipment`, `get_tracking` and `handle_webhook`. Four more are optional —
-pickups, manifests, resuming a partial booking and importing services — and callers ask
-`supports("pickup" | "manifest" | "resume" | "service_choices")` rather than hard-coding which carrier can
-do what. The [step-by-step guide](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/build/build-a-carrier)
-builds one from scratch, tests included.
+Create a Single DocType in your own app, extend `ShippingProviderBase`, and implement `get_rates`,
+`create_shipment`, `cancel_shipment`, `get_tracking` and `handle_webhook`. The
+[step-by-step guide](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/build/build-a-carrier) walks through it,
+tests included.
 
-### Under the Hood
+### Development
 
-- [Frappe Framework](https://github.com/frappe/frappe) — Full-stack Python web framework.
-- [ERPNext](https://github.com/frappe/erpnext) — Address, Currency, Shipping Rule and Delivery Note.
+```bash
+bench --site test_site set-config allow_tests true
+# once, on a fresh site: ERPNext's test records
+bench --site test_site run-tests --lightmode --module erpnext.tests.bootstrap_test_data
+bench --site test_site run-tests --app bwh_shipping
+```
+
+### Support
+
+Found a bug or have a question? [Open an issue](https://github.com/bwhtech/bwh_shipping/issues).
 
 ## About BWH Studios
 
