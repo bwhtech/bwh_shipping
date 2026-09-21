@@ -15,7 +15,7 @@
 </div>
 
 BWH Shipping lets an ERPNext store quote delivery options at checkout, book shipments and track them,
-using the same code for every carrier. Read the **[developer docs](https://bwhdocs.fsn.frappe.cloud/bwh-shipping/get-started/overview)**.
+using the same code for every carrier. Read the **[developer docs](https://docs.bwh.tech/bwh-shipping/get-started/overview)**.
 
 ### Carriers
 
