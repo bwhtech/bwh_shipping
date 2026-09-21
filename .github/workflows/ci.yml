@@ -101,6 +101,9 @@ jobs:
         working-directory: /home/runner/frappe-bench
         run: |
           bench --site test_site set-config allow_tests true
+          # A fresh site skips the setup wizard, leaving no language or Address Template; ERPNext's own
+          # CI completes setup through this bootstrap before its tests run.
+          bench --site test_site run-tests --lightmode --module erpnext.tests.bootstrap_test_data
           bench --site test_site run-tests --app bwh_shipping
         env:
           TYPE: server
