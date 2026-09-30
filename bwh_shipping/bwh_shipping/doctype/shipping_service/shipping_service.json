@@ -48,12 +48,12 @@
    "fieldtype": "Column Break"
   },
   {
+   "description": "Leave empty to deliver it yourself, charged by its Shipping Rule or Backup Charge.",
    "fieldname": "provider",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Provider",
-   "options": "Shipping Provider Profile",
-   "reqd": 1
+   "options": "Shipping Provider Profile"
   },
   {
    "description": "The provider's identifier for the carrier service to quote and book, e.g. a Shiprocket courier id.",
@@ -109,7 +109,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-20 00:00:00.000000",
+ "modified": "2026-09-30 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "BWH Shipping",
  "name": "Shipping Service",

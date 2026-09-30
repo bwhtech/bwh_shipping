@@ -18,6 +18,9 @@ class ShippingService(Document):
 		# than on a live order that has already taken the customer's money.
 		if not self.enabled:
 			return
+		if not self.provider:
+			self.validate_priced_without_carrier()
+			return
 		if not self.service_code:
 			frappe.throw(
 				_(
@@ -30,6 +33,17 @@ class ShippingService(Document):
 					frappe.bold(self.provider), frappe.bold(self.title)
 				)
 			)
+
+	def validate_priced_without_carrier(self):
+		# With no carrier there is no live rate, and pricing drops an option it cannot price, so a
+		# store-delivered option saved without either would silently vanish from checkout.
+		if self.shipping_rule or flt(self.backup_charge) > 0:
+			return
+		frappe.throw(
+			_(
+				"Set a Shipping Rule or a Backup Charge on {0} — without a provider, nothing else prices it."
+			).format(frappe.bold(self.title))
+		)
 
 	def on_update(self):
 		get_enabled_services.clear_cache()
