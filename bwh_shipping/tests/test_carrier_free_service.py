@@ -1,6 +1,8 @@
 # Copyright (c) 2026, Build With Hussain and contributors
 # For license information, please see license.txt
 
+from unittest.mock import patch
+
 import frappe
 from frappe.tests import IntegrationTestCase
 
@@ -30,9 +32,12 @@ class TestCarrierFreeService(IntegrationTestCase):
 		service = make_carrier_free_service("Quoted Van", backup_charge=75).insert()
 		get_enabled_services.clear_cache()
 
-		options = quote_services(
-			None, {"country": "India"}, [{"weight": 1, "count": 1}], {"base_net_total": 500}
-		)
+		# Other enabled options on the site belong to real carriers; their live quote would leave the box
+		# and its request log commits mid-test.
+		with patch("bwh_shipping.bwh_shipping.pricing.get_live_quotes", return_value={}):
+			options = quote_services(
+				None, {"country": "India"}, [{"weight": 1, "count": 1}], {"base_net_total": 500}
+			)
 		quoted = next(option for option in options if option["title"] == service.title)
 
 		self.assertEqual(quoted["amount"], 75)
