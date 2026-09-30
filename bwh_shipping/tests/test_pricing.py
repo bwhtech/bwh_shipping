@@ -14,6 +14,8 @@ from bwh_shipping.bwh_shipping.pricing import (
 	price_service,
 	quote_services,
 )
+from bwh_shipping.fulfilment import validate_carrier_booking
+from bwh_shipping.tests.test_carrier_import import create_test_provider_profile
 
 
 def get_unique_name(label: str) -> str:
@@ -21,7 +23,9 @@ def get_unique_name(label: str) -> str:
 
 
 def get_company() -> str:
-	return frappe.defaults.get_defaults().get("company") or frappe.get_all("Company", pluck="name", limit=1)[0]
+	return (
+		frappe.defaults.get_defaults().get("company") or frappe.get_all("Company", pluck="name", limit=1)[0]
+	)
 
 
 def make_service(label: str, backup_charge: float = 0, **fields) -> str:
@@ -47,7 +51,10 @@ def make_shipping_rule(conditions: list[dict], calculate_based_on: str = "Net To
 			"calculate_based_on": calculate_based_on,
 			"company": company,
 			"account": frappe.get_all(
-				"Account", filters={"company": company, "is_group": 0, "root_type": "Income"}, pluck="name", limit=1
+				"Account",
+				filters={"company": company, "is_group": 0, "root_type": "Income"},
+				pluck="name",
+				limit=1,
 			)[0],
 			"cost_center": frappe.get_cached_value("Company", company, "cost_center"),
 			"disabled": disabled,
@@ -57,7 +64,9 @@ def make_shipping_rule(conditions: list[dict], calculate_based_on: str = "Net To
 	return rule
 
 
-def band(service: str, from_value: float, to_value: float, shipping_amount: float = 0, free_shipping: int = 0):
+def band(
+	service: str, from_value: float, to_value: float, shipping_amount: float = 0, free_shipping: int = 0
+):
 	return {
 		"shipping_service": service,
 		"from_value": from_value,
@@ -156,14 +165,12 @@ class TestShippingRuleBandPricing(PricingTestCase):
 		self.assertEqual(amounts[standard], 99)
 
 	def test_live_rate_prices_a_service_outside_every_band(self):
-		provider = frappe.get_all("Shipping Provider Profile", filters={"enabled": 1}, pluck="name", limit=1)
-		if not provider:
-			self.skipTest("No enabled Shipping Provider Profile on this site")
+		provider = create_test_provider_profile()
 		courier = make_service(
-			"Courier", backup_charge=99, provider=provider[0], service_code="_test_code", markup_percent=10
+			"Courier", backup_charge=99, provider=provider, service_code="_test_code", markup_percent=10
 		)
 		rule = make_shipping_rule([band(courier, 0, 500, 40)])
-		self.get_live_quotes.return_value = {(provider[0], "_test_code"): {"amount": 100}}
+		self.get_live_quotes.return_value = {(provider, "_test_code"): {"amount": 100}}
 
 		rows = quote_services(None, {}, [], {"base_net_total": 800}, shipping_rule=rule.name)
 		row = next(row for row in rows if row["title"] == courier)
@@ -241,9 +248,20 @@ class TestSelfDeliveredService(PricingTestCase):
 		self.assertTrue(frappe.db.get_value("Shipping Service", service, "enabled"))
 
 	def test_carrier_service_without_code_is_still_refused(self):
-		provider = frappe.get_all("Shipping Provider Profile", filters={"enabled": 1}, pluck="name", limit=1)
-		if not provider:
-			self.skipTest("No enabled Shipping Provider Profile on this site")
+		provider = create_test_provider_profile()
 
 		with self.assertRaises(frappe.ValidationError):
-			make_service("No Code", provider=provider[0])
+			make_service("No Code", provider=provider)
+
+	def test_booking_refuses_an_option_the_store_delivers(self):
+		service = make_service("Own Van", backup_charge=50)
+
+		with self.assertRaises(frappe.ValidationError):
+			validate_carrier_booking({"delivery_option": service, "provider": None})
+
+	def test_booking_allows_a_carrier_option_or_no_recorded_choice(self):
+		provider = create_test_provider_profile()
+		courier = make_service("Courier", provider=provider, service_code="_test_code")
+
+		validate_carrier_booking({"delivery_option": courier, "provider": provider})
+		validate_carrier_booking({})

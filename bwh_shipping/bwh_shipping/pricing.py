@@ -137,7 +137,7 @@ def get_provider_rates(
 		return []
 
 
-def price_row(service: dict, quote: dict | None, cart: dict, band) -> dict | None:
+def price_row(service: dict, quote: dict | None, cart: dict, band=None) -> dict | None:
 	priced = price_service(service, quote, cart, band)
 	if priced is UNPRICEABLE:
 		return None
@@ -210,7 +210,7 @@ def get_covering_band(bands: list | None, value: float):
 		if flt(band.from_value) <= value and (not band.to_value or value <= flt(band.to_value)):
 			return band
 	# Deliberately no fallback band: a cart outside every band falls through to the Backup Charge rather
-	# than shipping free. A rule that means "free above X" needs an open-ended top band saying so.
+	# than shipping free. ERPNext allows one open-ended band per rule, so only one service can be "and above".
 	return None
 
 
