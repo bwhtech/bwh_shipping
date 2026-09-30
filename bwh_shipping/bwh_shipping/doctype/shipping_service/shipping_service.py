@@ -16,7 +16,9 @@ class ShippingService(Document):
 	def validate_bookable(self):
 		# An enabled service is buyable at checkout, so a gap has to surface here, at config time, rather
 		# than on a live order that has already taken the customer's money.
-		if not self.enabled:
+		# A service with no provider is delivered by the store itself: nothing to book, and one the store's
+		# Shipping Rule and Backup Charge cannot price is simply left out at checkout.
+		if not self.enabled or not self.provider:
 			return
 		if not self.service_code:
 			frappe.throw(
@@ -44,7 +46,7 @@ def create_shipping_services(provider: str, selections: list, default_rate: floa
 
 	Each selection is {"service_code", "service_name", "carrier"} as the provider's own choices method
 	shaped it. `default_rate` seeds every new service's Backup Charge — what the option costs when no
-	Shipping Rule band covers the cart and the carrier returns no live quote.
+	band on the store's Shipping Rule covers the cart and the carrier returns no live quote.
 
 	A service code already imported for this provider is skipped rather than duplicated, so re-running the
 	import after adding a carrier picks up only what is new.
