@@ -5,6 +5,7 @@ import frappe
 from frappe import _
 from frappe.integrations.utils import create_request_log
 from frappe.model.document import Document
+from frappe.utils import validate_url
 from frappe.utils.data import cint, flt, get_datetime, today
 
 from bwh_shipping.bwh_shipping.utils import get_address_payload
@@ -17,17 +18,31 @@ CANCELLABLE_STATUSES = ("Draft", "Ready To Ship", "Pickup Scheduled")
 
 class ShippingRequest(Document):
 	def validate(self):
+		self.validate_tracking_url()
 		self.set_billable_weight()
+
+	def validate_tracking_url(self):
+		# Shoppers open this link from the storefront, so only web links are stored.
+		if self.tracking_url:
+			validate_url(self.tracking_url, throw=True, valid_schemes=("http", "https"))
 
 	def set_billable_weight(self):
 		self.billable_weight = billable_weight(self.get_parcels(), self.get_volumetric_divisor())
 
 	def get_volumetric_divisor(self) -> int:
 		"""The divisor is carrier policy, so the provider's own settings own it."""
+		if not self.provider:
+			return DEFAULT_VOLUMETRIC_DIVISOR
 		divisor = cint(getattr(self.get_controller(), "volumetric_divisor", 0))
 		return divisor or DEFAULT_VOLUMETRIC_DIVISOR
 
 	def get_controller(self):
+		if not self.provider:
+			frappe.throw(
+				_("{0} was shipped by a fulfilment partner, so there is no carrier to call.").format(
+					self.name
+				)
+			)
 		provider_settings = frappe.get_cached_value(
 			"Shipping Provider Profile", self.provider, "provider_settings"
 		)

@@ -2,7 +2,7 @@
 // so an operator cannot double-book a parcel or ask a provider for something it cannot do.
 frappe.ui.form.on("Shipping Request", {
 	refresh(frm) {
-		if (frm.doc.__islocal) return;
+		if (frm.doc.__islocal || !frm.doc.provider) return;
 
 		if (!frm.doc.awb) {
 			const resuming = Boolean(frm.doc.order_ref);
