@@ -18,8 +18,14 @@ CANCELLABLE_STATUSES = ("Draft", "Ready To Ship", "Pickup Scheduled")
 
 class ShippingRequest(Document):
 	def validate(self):
+		self.validate_origin_address()
 		self.validate_tracking_url()
 		self.set_billable_weight()
+
+	def validate_origin_address(self):
+		# A fulfilment partner ships from its own warehouse, which the store does not know.
+		if self.provider and not self.origin_address:
+			frappe.throw(_("Set a Pickup Address to ship with {0}.").format(frappe.bold(self.provider)))
 
 	def validate_tracking_url(self):
 		# Shoppers open this link from the storefront, so only web links are stored.

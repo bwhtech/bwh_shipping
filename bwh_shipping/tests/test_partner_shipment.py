@@ -24,3 +24,10 @@ class TestPartnerShipment(IntegrationTestCase):
 
 		request.tracking_url = "https://track.example.com/AWB123"
 		request.validate_tracking_url()
+
+	def test_only_a_carrier_shipment_needs_a_pickup_address(self):
+		request = frappe.new_doc("Shipping Request")
+		request.validate_origin_address()
+
+		request.provider = "Any Carrier"
+		self.assertRaises(frappe.ValidationError, request.validate_origin_address)
