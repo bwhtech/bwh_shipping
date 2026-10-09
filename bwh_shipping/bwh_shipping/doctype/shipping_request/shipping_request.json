@@ -39,6 +39,7 @@
   "shipment_ref",
   "awb",
   "tracking_ref",
+  "tracking_url",
   "column_break_booking",
   "label_url",
   "manifest_url",
@@ -59,8 +60,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Provider",
-   "options": "Shipping Provider Profile",
-   "reqd": 1
+   "description": "Empty when a fulfilment partner shipped the parcel itself and only reports its tracking.",
+   "options": "Shipping Provider Profile"
   },
   {
    "description": "The delivery option the customer chose and paid for, when this shipment came from a storefront order.",
@@ -165,8 +166,8 @@
    "fieldname": "origin_address",
    "fieldtype": "Link",
    "label": "Pickup Address",
-   "options": "Address",
-   "reqd": 1
+   "mandatory_depends_on": "eval:doc.provider",
+   "options": "Address"
   },
   {
    "fieldname": "column_break_route",
@@ -262,6 +263,12 @@
    "read_only": 1
   },
   {
+   "fieldname": "tracking_url",
+   "fieldtype": "Small Text",
+   "label": "Tracking URL",
+   "read_only": 1
+  },
+  {
    "fieldname": "column_break_booking",
    "fieldtype": "Column Break"
   },
@@ -335,7 +342,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-20 00:00:00.000000",
+ "modified": "2026-10-04 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "BWH Shipping",
  "name": "Shipping Request",
