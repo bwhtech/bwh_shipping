@@ -49,7 +49,7 @@ function get_dialog_fields(accounts) {
 			fieldname: "default_rate",
 			label: __("Default Rate"),
 			description: __(
-				"Backup Charge set on each imported service — what it costs when no Shipping Rule band covers the cart and the carrier gives no live quote. Leave it at 0 to price them yourself later."
+				"Backup Charge set on each imported service — what it costs when no band on the store's Shipping Rule covers the cart and the carrier gives no live quote. Leave it at 0 to price them yourself later."
 			),
 		},
 	];

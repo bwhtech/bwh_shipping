@@ -31,6 +31,7 @@ def create_shipping_request(delivery_note: str) -> str:
 
 	sales_order = get_sales_order(source)
 	choice = get_order_choice(sales_order)
+	validate_carrier_booking(choice)
 	provider = choice.get("provider") or get_default_provider()
 	if not provider:
 		frappe.throw(_("No shipping provider is enabled, so this delivery cannot be booked."))
@@ -58,6 +59,21 @@ def create_shipping_request(delivery_note: str) -> str:
 	)
 	request.insert()
 	return request.name
+
+
+def validate_carrier_booking(choice: dict):
+	"""An option the store delivers itself has no carrier to book, and the default-provider fallback
+	would otherwise buy a label the shopper never paid for."""
+	delivery_option = choice.get("delivery_option")
+	if not delivery_option or choice.get("provider"):
+		return
+	service = frappe.db.get_value("Shipping Service", delivery_option, ["name", "provider"], as_dict=True)
+	if service and not service.provider:
+		frappe.throw(
+			_("{0} is delivered by the store, so there is no carrier to book.").format(
+				frappe.bold(delivery_option)
+			)
+		)
 
 
 def get_existing_request(delivery_note: str) -> str | None:

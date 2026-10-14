@@ -17,7 +17,6 @@
   "markup_percent",
   "handling_fee",
   "column_break_pricing",
-  "shipping_rule",
   "backup_charge"
  ],
  "fields": [
@@ -53,7 +52,7 @@
    "in_list_view": 1,
    "label": "Provider",
    "options": "Shipping Provider Profile",
-   "reqd": 1
+   "description": "Leave empty to deliver it yourself, priced by the store's Shipping Rule or its Backup Charge."
   },
   {
    "description": "The provider's identifier for the carrier service to quote and book, e.g. a Shiprocket courier id.",
@@ -92,15 +91,8 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Optional. Prices this option by cart-value or weight bands instead of the live carrier rate. A band always wins over a live rate, and its free-shipping tier is what makes this option free.",
-   "fieldname": "shipping_rule",
-   "fieldtype": "Link",
-   "label": "Shipping Rule",
-   "options": "Shipping Rule"
-  },
-  {
    "default": "0",
-   "description": "Charged when no band covers the cart and the carrier gives no live quote. Always set this: an option with no band, no live rate and no backup charge is hidden at checkout rather than shown as free.",
+   "description": "Charged when no band on the store's Shipping Rule covers the cart and the carrier gives no live quote. Always set this: an option with no band, no live rate and no backup charge is hidden at checkout rather than shown as free.",
    "fieldname": "backup_charge",
    "fieldtype": "Currency",
    "label": "Backup Charge"
@@ -109,7 +101,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-20 00:00:00.000000",
+ "modified": "2026-09-30 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "BWH Shipping",
  "name": "Shipping Service",
