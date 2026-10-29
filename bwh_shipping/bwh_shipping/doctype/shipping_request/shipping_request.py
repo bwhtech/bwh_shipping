@@ -10,6 +10,7 @@ from frappe.utils.data import cint, flt, get_datetime, today
 
 from bwh_shipping.bwh_shipping.utils import get_address_payload
 from bwh_shipping.exceptions import PartialBookingError
+from bwh_shipping.fulfilment import build_items
 from bwh_shipping.status import can_advance, is_terminal, validate_status
 from bwh_shipping.units import DEFAULT_VOLUMETRIC_DIVISOR, billable_weight, normalise_parcels
 
@@ -57,6 +58,16 @@ class ShippingRequest(Document):
 	def get_parcels(self) -> list[dict]:
 		return normalise_parcels([parcel.as_dict() for parcel in self.parcels])
 
+	def get_parcels_with_items(self) -> list[dict]:
+		"""A Shipping Parcel row holds no line detail, so the Delivery Note's lines go on the first parcel.
+
+		Shiprocket needs them for its order lines, and a fulfilment partner prints from them.
+		"""
+		parcels = self.get_parcels()
+		if self.delivery_note:
+			parcels[0]["items"] = build_items(frappe.get_cached_doc("Delivery Note", self.delivery_note))
+		return parcels
+
 	def get_shipment_payload(self) -> dict:
 		return {
 			"reference": self.name,
@@ -64,7 +75,7 @@ class ShippingRequest(Document):
 			"service_code": self.service_code,
 			"origin": get_address_payload(self.origin_address),
 			"destination": get_address_payload(self.destination_address, self.customer_name),
-			"parcels": self.get_parcels(),
+			"parcels": self.get_parcels_with_items(),
 			"declared_value": flt(self.declared_value),
 			"currency": self.currency,
 			"cod": bool(self.cod),
@@ -97,6 +108,12 @@ class ShippingRequest(Document):
 		if self.awb:
 			frappe.throw(
 				_("This shipment is already booked with AWB {0}").format(frappe.bold(self.awb)),
+				title=_("Already Booked"),
+			)
+		if self.status != "Draft":
+			# A fulfilment partner books now and ships later, so a booked shipment can still have no AWB.
+			frappe.throw(
+				_("A shipment in status {0} cannot be booked again").format(frappe.bold(_(self.status))),
 				title=_("Already Booked"),
 			)
 		if not self.service_code:
@@ -197,7 +214,7 @@ class ShippingRequest(Document):
 	@frappe.whitelist()
 	def sync_status(self) -> str:
 		"""Re-read the authoritative status from the provider. Never trust a stale local state."""
-		if not self.awb:
+		if not (self.awb or self.tracking_ref):
 			frappe.throw(_("This shipment has no AWB yet, so there is nothing to track"))
 
 		tracking = self.get_controller().get_tracking(
@@ -211,6 +228,7 @@ class ShippingRequest(Document):
 			(tracking or {}).get("status"),
 			provider_status=(tracking or {}).get("provider_status"),
 			events=(tracking or {}).get("events"),
+			handover=tracking,
 		)
 		return self.status
 
@@ -250,6 +268,7 @@ class ShippingRequest(Document):
 		event_id: str | None = None,
 		events: list | None = None,
 		provider_status: str | None = None,
+		handover: dict | None = None,
 	) -> bool:
 		"""Apply a verified provider status. Return False when the event is a replay or not applicable."""
 		self.lock_booking()
@@ -262,7 +281,9 @@ class ShippingRequest(Document):
 		# Letting it would point the replay guard at an event that never took effect, and on a shipment
 		# still in flight that loses the guard for the event that did. Re-examining a rejected delivery on
 		# each retry is cheap: it fails the ladder check immediately.
-		return self.apply_status(status, provider_status=provider_status, events=events, event_id=event_id)
+		return self.apply_status(
+			status, provider_status=provider_status, events=events, event_id=event_id, handover=handover
+		)
 
 	def apply_status(
 		self,
@@ -270,12 +291,14 @@ class ShippingRequest(Document):
 		provider_status: str | None = None,
 		events: list | None = None,
 		event_id: str | None = None,
+		handover: dict | None = None,
 	) -> bool:
 		"""Move the shipment along the ladder, recording scans either way.
 
 		Returns whether `status` was actually applied: a carrier that reports a scan out of order, or a
 		provider replaying history, must never un-deliver a delivered shipment.
 		"""
+		recorded = self.record_handover(handover)
 		appended = self.append_tracking_events(events)
 		advanced = bool(status) and can_advance(self.status, status)
 
@@ -300,9 +323,22 @@ class ShippingRequest(Document):
 			if event_id:
 				self.last_webhook_event_id = event_id
 
-		if advanced or appended or describes_current_state:
+		if advanced or appended or recorded or describes_current_state:
 			self.save(ignore_permissions=True)
 		return advanced
+
+	def record_handover(self, details: dict | None) -> bool:
+		"""Fill in the AWB, carrier and tracking link a fulfilment partner reports once it ships.
+
+		Only blanks are filled: a booked AWB is the handle every later call and webhook matches on.
+		"""
+		recorded = False
+		for field in ("awb", "carrier", "tracking_url"):
+			value = (details or {}).get(field)
+			if value and not self.get(field):
+				self.set(field, value)
+				recorded = True
+		return recorded
 
 	def append_tracking_events(self, events: list | None) -> bool:
 		"""Add scans we have not already recorded. Returns whether anything was added."""

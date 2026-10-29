@@ -21,6 +21,8 @@ using the same code for every carrier. Read the **[developer docs](https://docs.
 
 - **Shiprocket**: courier aggregator for domestic India, with pickups and manifests
 - **AfterShip**: labels and tracking across hundreds of carriers worldwide
+- **Printful**: print-on-demand fulfilment. Printful prints, packs and ships each order, and its tracking
+  reaches the Shipping Request
 
 ### Features
 

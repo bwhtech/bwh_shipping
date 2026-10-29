@@ -52,6 +52,9 @@ class ShippingProviderBase(ABC):
 
 		`tracking_ref` exists because a provider's tracking handle is not always its label handle —
 		AfterShip registers a tracking object with its own id, while Shiprocket tracks on the AWB itself.
+
+		A fulfilment partner such as Printful ships later, so it returns no "awb" and a "tracking_ref";
+		`get_tracking` and `handle_webhook` then report "awb", "carrier" and "tracking_url" once it ships.
 		"""
 
 	@abstractmethod
@@ -74,7 +77,7 @@ class ShippingProviderBase(ABC):
 	@abstractmethod
 	def handle_webhook(self, payload: bytes, headers: dict) -> dict:
 		"""Verify the delivery is really from the provider, then return {} to ignore it, or
-		{"awb", "status", "event_id", "events"}."""
+		{"awb", "status", "event_id", "events"}. A provider that has no AWB yet returns "tracking_ref"."""
 
 	def schedule_pickup(self, shipment_ref: str, pickup_date: str | None = None) -> dict:
 		"""Ask the carrier to collect. Return {"pickup_ref", "scheduled_date", "message"}."""

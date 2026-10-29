@@ -4,7 +4,8 @@ frappe.ui.form.on("Shipping Request", {
 	refresh(frm) {
 		if (frm.doc.__islocal || !frm.doc.provider) return;
 
-		if (!frm.doc.awb) {
+		// A fulfilment partner books without an AWB, so "booked" is read from the status, as on the server.
+		if (frm.doc.status === "Draft") {
 			const resuming = Boolean(frm.doc.order_ref);
 			frm.add_custom_button(resuming ? __("Resume Booking") : __("Book Shipment"), () =>
 				confirm_and_run(
@@ -19,9 +20,11 @@ frappe.ui.form.on("Shipping Request", {
 			);
 		}
 
-		if (frm.doc.awb) {
+		if (frm.doc.awb || frm.doc.tracking_ref) {
 			frm.add_custom_button(__("Sync Status"), () => run(frm, "sync_status"));
+		}
 
+		if (frm.doc.awb) {
 			if (frm.doc.label_url) {
 				frm.add_custom_button(__("Print Label"), () =>
 					window.open(frm.doc.label_url, "_blank")

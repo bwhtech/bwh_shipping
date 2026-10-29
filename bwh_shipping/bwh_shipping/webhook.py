@@ -37,14 +37,15 @@ def handle():
 		return WEBHOOK_ACCEPTED
 
 	awb = result.get("awb")
+	tracking_ref = result.get("tracking_ref")
 	status = result.get("status")
 	event_id = result.get("event_id")
 
-	if not (awb and status):
+	if not ((awb or tracking_ref) and status):
 		log_webhook(provider, event_id=event_id, status="Failed")
 		return WEBHOOK_ACCEPTED
 
-	request_name = frappe.db.get_value("Shipping Request", {"awb": awb}, "name")
+	request_name = find_shipping_request(provider, awb, tracking_ref)
 	if not request_name:
 		log_webhook(provider, awb=awb, event_id=event_id, status="Failed")
 		return WEBHOOK_ACCEPTED
@@ -59,12 +60,26 @@ def handle():
 		return reject()
 
 	apply_status_as_administrator(
-		shipping_request, status, event_id, result.get("events"), result.get("provider_status")
+		shipping_request, status, event_id, result.get("events"), result.get("provider_status"), result
 	)
 	log_webhook(provider, awb=awb, event_id=event_id, status="Completed")
 	# A replayed delivery is still a success as far as the provider is concerned; anything else and it
 	# keeps retrying forever.
 	return WEBHOOK_ACCEPTED
+
+
+def find_shipping_request(provider: str, awb: str | None, tracking_ref: str | None) -> str | None:
+	"""Match on the AWB, else on the tracking handle the provider gave at booking.
+
+	A fulfilment partner learns the AWB only when it ships, so its earlier events carry nothing else.
+	"""
+	if awb and (request_name := frappe.db.get_value("Shipping Request", {"awb": awb}, "name")):
+		return request_name
+	if not tracking_ref:
+		return None
+	return frappe.db.get_value(
+		"Shipping Request", {"tracking_ref": tracking_ref, "provider": provider}, "name"
+	)
 
 
 def apply_status_as_administrator(
@@ -73,6 +88,7 @@ def apply_status_as_administrator(
 	event_id: str | None,
 	events: list | None,
 	provider_status: str | None = None,
+	handover: dict | None = None,
 ):
 	# The callback arrives as Guest, but the downstream Sales Order write-back needs a real user context.
 	# Restore the original user afterwards so a long-lived worker does not keep Administrator for the
@@ -81,7 +97,7 @@ def apply_status_as_administrator(
 	try:
 		frappe.set_user("Administrator")
 		shipping_request.apply_webhook_status(
-			status, event_id=event_id, events=events, provider_status=provider_status
+			status, event_id=event_id, events=events, provider_status=provider_status, handover=handover
 		)
 	finally:
 		frappe.set_user(session_user)
