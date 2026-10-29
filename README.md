@@ -21,6 +21,8 @@ using the same code for every carrier. Read the **[developer docs](https://docs.
 
 - **Shiprocket**: courier aggregator for domestic India, with pickups and manifests
 - **AfterShip**: labels and tracking across hundreds of carriers worldwide
+- **ShipStation**: rates and labels from the carriers connected to a ShipStation account, with signed
+  tracking webhooks
 
 ### Features
 

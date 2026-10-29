@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-10-29 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "column_break_mode",
+  "test_mode",
+  "section_break_creds",
+  "api_key",
+  "column_break_creds",
+  "carrier_id",
+  "section_break_pickup",
+  "pickup_address",
+  "column_break_pickup",
+  "currency",
+  "section_break_rating",
+  "rates_timeout_seconds"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "column_break_mode",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Needs a sandbox key, which starts with <b>TEST_</b>. Only ShipStation API accounts (formerly ShipEngine) have a sandbox; on a ShipStation platform account turn this off, and every label bought is real.",
+   "fieldname": "test_mode",
+   "fieldtype": "Check",
+   "label": "Test Mode"
+  },
+  {
+   "fieldname": "section_break_creds",
+   "fieldtype": "Section Break",
+   "label": "API Credentials"
+  },
+  {
+   "description": "ShipStation API v2 key, sent as the <b>API-Key</b> header.",
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_creds",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Carrier account to rate and buy against, such as <b>se-123456</b>. Leave blank to rate-shop every carrier connected to the account.",
+   "fieldname": "carrier_id",
+   "fieldtype": "Data",
+   "label": "Carrier ID"
+  },
+  {
+   "fieldname": "section_break_pickup",
+   "fieldtype": "Section Break",
+   "label": "Pickup"
+  },
+  {
+   "description": "Ship-from address used when quoting rates at checkout.",
+   "fieldname": "pickup_address",
+   "fieldtype": "Link",
+   "label": "Pickup Address",
+   "options": "Address"
+  },
+  {
+   "fieldname": "column_break_pickup",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Fallback currency when a quote does not name one.",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "section_break_rating",
+   "fieldtype": "Section Break",
+   "label": "Rating"
+  },
+  {
+   "default": "10",
+   "description": "How long a checkout rate call may take before options fall back to their backup price.",
+   "fieldname": "rates_timeout_seconds",
+   "fieldtype": "Int",
+   "label": "Rates Timeout (seconds)"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-10-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "BWH Shipping",
+ "name": "ShipStation Shipping Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
